@@ -3,7 +3,16 @@
 - name: Who is the current user?
   ansible.builtin.debug:
     msg: "{{ ansible_user_id }}"
-- name: Install additional tools
+
+- name: What is ansible_virtualization_type?
+  ansible.builtin.debug:
+    msg: "{{ ansible_virtualization_type }}"
+
+- name: What is ansible_distribution?
+  ansible.builtin.debug:
+    msg: "{{ ansible_distribution }}"
+
+- name: Install additional tools (Centos)
   become: true
   ansible.builtin.yum:
     name: "{{ packages }}"
@@ -11,24 +20,64 @@
   vars:
     packages:
       - "vim-enhanced"
-- name: Downloading Vector distributives
-  ansible.builtin.get_url:
-    mode: 0644
-    url: "https://packages.timber.io/vector/latest/{{ vector_version }}.rpm"
-    dest: "/tmp/{{ vector_version }}.rpm"
-- name: Check file exists "vector"
-  ansible.builtin.stat:
-    path: /tmp/{{ vector_version }}.rpm
-  register: vector_stat
-- name: Install Vector packages
+  when:
+    - ansible_distribution == "CentOS"
+
+- name: Install additional tools (Ubuntu)
   become: true
-  ansible.builtin.yum:
+  ansible.builtin.apt:
     name: "{{ packages }}"
     state: present
   vars:
     packages:
-      - "/tmp/{{ vector_version }}.rpm"
-  when: vector_stat.stat.exists
+      - "vim"
+      - "curl"
+  when:
+    - ansible_distribution == "Ubuntu"
+
+- name: Vector distributive installation (Centos)
+  block:
+  - name: What is vector_version?
+    ansible.builtin.debug:
+      msg: "{{ vector_version }}"
+  - name: Downloading RPM-archive (Centos)
+    ansible.builtin.get_url:
+      mode: 0644
+      url: "https://packages.timber.io/vector/latest/{{ vector_version }}.rpm"
+      dest: "/tmp/{{ vector_version }}.rpm"
+  - name: Check file exists "vector" (Centos)
+    ansible.builtin.stat:
+      path: /tmp/{{ vector_version }}.rpm
+    register: vector_stat
+  - name: Install Vector packages from RPM-archive (Centos)
+    become: true
+    ansible.builtin.yum:
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+        - "/tmp/{{ vector_version }}.rpm"
+  when:
+    - not ansible_check_mode
+    - ansible_distribution == "CentOS"
+
+- name: Vector distributive installation (Ubuntu)
+  block:
+  - name: What is vector_version?
+    ansible.builtin.debug:
+      msg: "{{ vector_version }}"
+  - name: Repository installation (Ubuntu)
+    become: true
+    ansible.builtin.shell: curl -1sLf "https://repositories.timber.io/public/vector/cfg/setup/bash.deb.sh" | sudo -E bash
+    changed_when: false
+  - name: Install Vector packages from repository (Ubuntu)
+    become: true
+    ansible.builtin.apt:
+      name: vector
+  when:
+    - not ansible_check_mode
+    - ansible_distribution == "Ubuntu"
+
 - name: Sending Vector config
   become: true
   ansible.builtin.template:

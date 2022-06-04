@@ -6,4 +6,7 @@
     name: vector
     state: started
     daemon_reload: true
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - ansible_virtualization_type != "docker"
+    - ansible_virtualization_type != "kvm"
